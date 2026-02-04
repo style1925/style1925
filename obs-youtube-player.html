@@ -2,97 +2,100 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>OBS YouTube Play-Support Tool</title>
+  <title>YT Play-Support Tool</title>
   <style>
-    /* OBS最適化：スクロールバーが映り込まないように非表示にします */
+    /* OBS最適化：スクロールバー排除 */
     ::-webkit-scrollbar { display: none; }
 
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
-      overflow: hidden; background: transparent; /* 再生前は背景透過 */
+      overflow: hidden; background: transparent;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 再生プレイヤー：動画が送られてくるまで非表示 */
+    /* 再生用プレイヤー：再生開始時にフェードイン */
     iframe {
       border: 0; width: 100%; height: 100%;
       display: none; background: #000;
-      animation: fadeIn 0.8s ease;
+      animation: fadeIn 0.4s ease-out;
     }
 
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-    /* 操作ドック（リモコン画面）：OBSドックに合わせたダークデザイン */
+    /* 操作ドックUI */
     #form {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%); z-index: 10;
-      background: rgba(20, 20, 20, 0.98); padding: 30px;
+      background: rgba(30, 30, 30, 0.98); padding: 25px;
       border-radius: 16px; color: #fff; text-align: center;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-      width: 85%; max-width: 500px; display: none;
-      border: 1px solid #333;
+      width: 90%; max-width: 450px; display: none;
+      border: 1px solid #444;
     }
 
-    h2 { font-size: 1.4rem; margin-bottom: 20px; font-weight: 800; color: #0f0; letter-spacing: 0.05em; }
+    h2 { font-size: 1.2rem; margin-bottom: 20px; font-weight: 800; color: #00ff7f; letter-spacing: 0.05em; }
     
-    /* 入力欄：視認性を高め、スペルチェックを無効化 */
     input {
       width: 100%; padding: 12px; font-size: 1rem;
-      border: 2px solid #444; border-radius: 8px;
+      border: 2px solid #555; border-radius: 8px;
       margin-bottom: 15px; box-sizing: border-box;
       outline: none; background: #000; color: #fff;
     }
-    input:focus { border-color: #0f0; }
+    input:focus { border-color: #00ff7f; }
 
-    /* 送信ボタン：クリック時に視覚的なフィードバックを与えます */
+    .btn-group { display: flex; gap: 10px; }
+
     button {
-      width: 100%; padding: 12px; font-size: 1rem; background: #0f0;
+      flex: 2; padding: 12px; font-size: 1rem; background: #00ff7f;
       color: #000; border: none; border-radius: 8px;
       cursor: pointer; font-weight: 800; transition: all 0.2s;
     }
-    button:hover { background: #0c0; transform: translateY(-2px); }
-    button:active { transform: translateY(0); opacity: 0.8; }
 
-    #error { color: #ff5555; margin-top: 15px; min-height: 1.2em; font-size: 0.9rem; font-weight: bold; }
+    button.stop { flex: 1; background: #555; color: #fff; }
+    button:hover { opacity: 0.8; transform: translateY(-1px); }
+    button:active { transform: translateY(0); opacity: 0.6; }
 
-    /* セットアップ案内画面 */
+    #status { margin-top: 15px; min-height: 1.2em; font-size: 0.85rem; font-weight: bold; }
+    .msg-error { color: #ff5555; }
+    .msg-success { color: #00ff7f; }
+
+    /* セットアップ案内 */
     #setup-guide {
-      color: #ccc; background: #0a0a0a; padding: 40px;
-      height: 100%; box-sizing: border-box; overflow-y: auto; display: none;
+      color: #ccc; background: #0f0f0f; padding: 40px;
+      height: 100%; box-sizing: border-box; overflow: auto; display: none;
     }
     .url-display {
-      background: #111; padding: 12px; border-radius: 6px;
+      background: #1a1a1a; padding: 12px; border-radius: 6px;
       margin: 8px 0 25px; word-break: break-all;
-      font-family: 'Consolas', monospace; border: 1px solid #333; color: #0f0;
+      font-family: 'Consolas', monospace; border: 1px solid #333; color: #00ff7f;
     }
-    strong { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; }
+    strong { color: #fff; display: block; margin-bottom: 5px; font-size: 1rem; }
   </style>
 </head>
 <body>
 
-<!-- 操作用ドック（リモコン） -->
+<!-- 操作用ドック画面 -->
 <div id="form">
-  <h2>PLAY-SUPPORT DOCK</h2>
-  <input type="text" id="url" placeholder="YouTube URLを入力..." spellcheck="false" />
-  <button id="playBtn">SEND TO PLAYER</button>
-  <div id="error"></div>
+  <h2>YT PLAY-SUPPORT</h2>
+  <input type="text" id="url" placeholder="YouTube URLを入力..." spellcheck="false" autocomplete="off" />
+  <div class="btn-group">
+    <button id="playBtn">PLAY</button>
+    <button id="stopBtn" class="stop">STOP</button>
+  </div>
+  <div id="status"></div>
 </div>
 
-<!-- 再生プレイヤー（ソース） -->
+<!-- 再生画面用プレイヤー -->
 <iframe id="player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
 
-<!-- 起動時のセットアップ案内 -->
+<!-- モード未指定時のガイド -->
 <div id="setup-guide">
-  <h2 style="color:#0f0">YT PLAY-SUPPORT <span style="color:#fff">SETUP</span></h2>
-  <p>以下のURLをコピーしてOBSの各項目に貼り付けてください：</p>
-  
-  <strong>1. カスタムブラウザドック (操作パネル)</strong>
+  <h2 style="color:#00ff7f">SETUP GUIDE</h2>
+  <p>各URLをコピーしてOBSに登録してください：</p>
+  <strong>1. カスタムブラウザドック (操作用)</strong>
   <div class="url-display" id="url-dock"></div>
-
-  <strong>2. ブラウザソース (動画再生画面)</strong>
+  <strong>2. ブラウザソース (再生用)</strong>
   <div class="url-display" id="url-player"></div>
-  
-  <p style="color:#888"><small>※プレイヤー側は、動画を受信するまで背景が透過されます。</small></p>
 </div>
 
 <script>
@@ -100,79 +103,86 @@
   const form = document.getElementById('form');
   const guide = document.getElementById('setup-guide');
   const input = document.getElementById('url');
-  const error = document.getElementById('error');
+  const status = document.getElementById('status');
   const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
 
-  // URLパラメータ（?mode=...）を解析して動作を切り替えます
   const urlParams = new URLSearchParams(window.location.search);
   const mode = urlParams.get('mode');
   const baseUrl = window.location.origin + window.location.pathname;
 
-  /**
-   * YouTubeの各種URL形式から11桁の動画IDを抽出します
-   */
+  // YouTube ID抽出：配列の1番目の要素（11桁の文字列）を返します
   function getVideoId(url) {
-    const regex1 = /youtu\.be\/([a-zA-Z0-9_-]{11})/;
-    const regex2 = /youtube\.com\/(?:watch\?v=|embed\/)([a-zA-Z0-9_-]{11})/;
-    const regex3 = /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/;
-    const regex4 = /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/;
-
-    const match = url.match(regex1) || url.match(regex2) || url.match(regex3) || url.match(regex4);
-    return (match && match[1]) ? match[1] : null;
+    const patterns = [
+      /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/
+    ];
+    for (let p of patterns) {
+      const m = url.match(p);
+      // インデックス[1]を指定して文字列のみを抽出
+      if (m && m[1]) return m[1];
+    }
+    return null;
   }
 
-  /**
-   * プレイヤーを起動し、指定されたIDの動画を再生します
-   * パラメータ：自動再生オン、操作パネル有効、関連動画オフ、ミュート（自動再生回避用）
-   */
-  function executePlay(id) {
-    const params = "autoplay=1&mute=1&controls=1&fs=0&iv_load_policy=3&rel=0&enablejsapi=1&playsinline=1";
-    iframe.src = `https://www.youtube.com/embed/${id}?${params}`;
-    iframe.style.display = 'block';
-    document.body.style.background = '#000'; // 再生開始に合わせて背景を黒に
+  // プレイヤーの再生・停止制御
+  function setPlayerState(id) {
+    if (id) {
+      const params = "autoplay=1&controls=1&fs=0&iv_load_policy=3&rel=0&playsinline=1&enablejsapi=1";
+      iframe.src = `https://www.youtube.com/embed/${id}?${params}`;
+      iframe.style.display = 'block';
+      document.body.style.background = '#000';
+    } else {
+      iframe.src = '';
+      iframe.style.display = 'none';
+      document.body.style.background = 'transparent';
+    }
   }
 
-  // --- 動作モード判定 ---
+  function showStatus(text, isError = false) {
+    status.textContent = text;
+    status.className = isError ? 'msg-error' : 'msg-success';
+    setTimeout(() => status.textContent = '', 3000);
+  }
 
+  // 動作モード判定
   if (mode === 'dock') {
-    // 【ドックモード】URL入力画面を表示し、プレイヤーに情報を送信します
-    document.body.style.background = '#0a0a0a';
+    document.body.style.background = '#1a1a1a';
     form.style.display = 'block';
     
     playBtn.onclick = () => {
       const id = getVideoId(input.value.trim());
       if (id) {
-        // 同一ブラウザ内（OBS内）の別画面に命令を飛ばします
-        localStorage.setItem('ps_yt_trigger', JSON.stringify({id: id, time: Date.now()}));
-        error.style.color = '#0f0';
-        error.textContent = 'SENT SUCCESSFULLY';
+        localStorage.setItem('ps_obs_trigger', JSON.stringify({action: 'play', id: id, time: Date.now()}));
+        showStatus('PLAYERへ送信完了');
         input.value = '';
-        setTimeout(() => { error.textContent = ''; error.style.color = '#ff5555'; }, 2000);
       } else {
-        error.textContent = 'INVALID URL';
+        showStatus('無効なURLです', true);
       }
     };
-  } 
-  else if (mode === 'player') {
-    // 【プレイヤーモード】ドックからの送信を待ち受けます（待機中は透明）
-    window.addEventListener('storage', (event) => {
-      if (event.key === 'ps_yt_trigger' && event.newValue) {
-        const data = JSON.parse(event.newValue);
-        executePlay(data.id);
+
+    stopBtn.onclick = () => {
+      localStorage.setItem('ps_obs_trigger', JSON.stringify({action: 'stop', time: Date.now()}));
+      showStatus('プレイヤーをリセット');
+    };
+
+  } else if (mode === 'player') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'ps_obs_trigger' && e.newValue) {
+        const data = JSON.parse(e.newValue);
+        if (data.action === 'play') setPlayerState(data.id);
+        else if (data.action === 'stop') setPlayerState(null);
       }
     });
-  } 
-  else {
-    // 【セットアップモード】URLなしでアクセスした場合にガイドを表示
+  } else {
     guide.style.display = 'block';
-    document.body.style.background = '#0a0a0a';
+    document.body.style.background = '#0f0f0f';
     document.getElementById('url-dock').textContent = baseUrl + '?mode=dock';
     document.getElementById('url-player').textContent = baseUrl + '?mode=player';
   }
 
-  // Enterキーでの送信対応と初期フォーカス
-  input.addEventListener('keypress', e => { if (e.key === 'Enter') playBtn.onclick(); });
-  if(mode === 'dock') input.focus();
+  input.addEventListener('keypress', e => e.key === 'Enter' && playBtn.onclick());
+  if(mode === 'dock') window.onload = () => input.focus();
 </script>
 
 </body>
