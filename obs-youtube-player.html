@@ -2,133 +2,114 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>YouTube OBS Switcher</title>
+  <title>OBS YouTube Play-Support Tool</title>
   <style>
-    /* OBSでのスクロールバー映り込みを完全に防止します */
+    /* OBS最適化：スクロールバーが映り込まないように非表示にします */
     ::-webkit-scrollbar { display: none; }
 
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; background: transparent; /* 再生前は背景透過 */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* プレーヤーは再生開始まで非表示にし、画面いっぱいに表示します */
+    /* 再生プレイヤー：動画が送られてくるまで非表示 */
     iframe {
-      border: 0;
-      width: 100%;
-      height: 100%;
-      display: none;
+      border: 0; width: 100%; height: 100%;
+      display: none; background: #000;
+      animation: fadeIn 0.8s ease;
     }
 
-    /* 入力フォームのレイアウト。中央配置し、視認性を高めています */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* 操作ドック（リモコン画面）：OBSドックに合わせたダークデザイン */
     #form {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-      background: rgba(0, 0, 0, 0.95);
-      padding: 5vh 5vw;
-      border-radius: 20px;
-      color: #fff;
-      text-align: center;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
-      width: 80%;
-      max-width: 900px;
-      box-sizing: border-box;
-      transition: opacity 0.4s ease;
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); z-index: 10;
+      background: rgba(20, 20, 20, 0.98); padding: 30px;
+      border-radius: 16px; color: #fff; text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+      width: 85%; max-width: 500px; display: none;
+      border: 1px solid #333;
     }
 
-    h2 {
-      font-size: clamp(2rem, 5vw, 4rem);
-      margin: 0 0 4vh;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    /* 入力欄：フォーカス時に色が変わるようにし、操作場所を明確にしています */
+    h2 { font-size: 1.4rem; margin-bottom: 20px; font-weight: 800; color: #0f0; letter-spacing: 0.05em; }
+    
+    /* 入力欄：視認性を高め、スペルチェックを無効化 */
     input {
-      width: 100%;
-      padding: 2.5vh;
-      font-size: clamp(1.5rem, 4vw, 2.5rem);
-      border: 2px solid #333;
-      border-radius: 12px;
-      margin-bottom: 2vh;
-      box-sizing: border-box;
-      outline: none;
-      background: #111;
-      color: #fff;
-      transition: border-color 0.2s;
+      width: 100%; padding: 12px; font-size: 1rem;
+      border: 2px solid #444; border-radius: 8px;
+      margin-bottom: 15px; box-sizing: border-box;
+      outline: none; background: #000; color: #fff;
     }
+    input:focus { border-color: #0f0; }
 
-    input:focus {
-      border-color: #0b0;
-    }
-
-    /* ボタン：ホバー時やクリック時に動きを付け、クリック感を出しています */
+    /* 送信ボタン：クリック時に視覚的なフィードバックを与えます */
     button {
-      padding: 2vh 6vw;
-      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
-      background: #0b0;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 700;
-      transition: transform 0.2s, background 0.2s;
+      width: 100%; padding: 12px; font-size: 1rem; background: #0f0;
+      color: #000; border: none; border-radius: 8px;
+      cursor: pointer; font-weight: 800; transition: all 0.2s;
     }
+    button:hover { background: #0c0; transform: translateY(-2px); }
+    button:active { transform: translateY(0); opacity: 0.8; }
 
-    button:hover {
-      background: #0d0;
-      transform: scale(1.05);
-    }
+    #error { color: #ff5555; margin-top: 15px; min-height: 1.2em; font-size: 0.9rem; font-weight: bold; }
 
-    button:active {
-      transform: scale(0.98);
+    /* セットアップ案内画面 */
+    #setup-guide {
+      color: #ccc; background: #0a0a0a; padding: 40px;
+      height: 100%; box-sizing: border-box; overflow-y: auto; display: none;
     }
-
-    /* エラーメッセージ用の領域。表示されてもレイアウトがガタつかないようにしています */
-    #error {
-      color: #ff5555;
-      margin-top: 3vh;
-      font-size: clamp(1.2rem, 3vw, 1.8rem);
-      min-height: 1.5em;
-      font-weight: 500;
+    .url-display {
+      background: #111; padding: 12px; border-radius: 6px;
+      margin: 8px 0 25px; word-break: break-all;
+      font-family: 'Consolas', monospace; border: 1px solid #333; color: #0f0;
     }
-
-    /* 再生開始時にフォームを滑らかに消すためのクラスです */
-    .hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
+    strong { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; }
   </style>
 </head>
 <body>
 
+<!-- 操作用ドック（リモコン） -->
 <div id="form">
-  <h2>YouTube URL</h2>
-  <input type="text" id="url" placeholder="URLを貼り付けてください" spellcheck="false" />
-  <br>
-  <button onclick="play()">再生開始</button>
+  <h2>PLAY-SUPPORT DOCK</h2>
+  <input type="text" id="url" placeholder="YouTube URLを入力..." spellcheck="false" />
+  <button id="playBtn">SEND TO PLAYER</button>
   <div id="error"></div>
 </div>
 
+<!-- 再生プレイヤー（ソース） -->
 <iframe id="player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+
+<!-- 起動時のセットアップ案内 -->
+<div id="setup-guide">
+  <h2 style="color:#0f0">YT PLAY-SUPPORT <span style="color:#fff">SETUP</span></h2>
+  <p>以下のURLをコピーしてOBSの各項目に貼り付けてください：</p>
+  
+  <strong>1. カスタムブラウザドック (操作パネル)</strong>
+  <div class="url-display" id="url-dock"></div>
+
+  <strong>2. ブラウザソース (動画再生画面)</strong>
+  <div class="url-display" id="url-player"></div>
+  
+  <p style="color:#888"><small>※プレイヤー側は、動画を受信するまで背景が透過されます。</small></p>
+</div>
 
 <script>
   const iframe = document.getElementById('player');
   const form = document.getElementById('form');
+  const guide = document.getElementById('setup-guide');
   const input = document.getElementById('url');
   const error = document.getElementById('error');
+  const playBtn = document.getElementById('playBtn');
+
+  // URLパラメータ（?mode=...）を解析して動作を切り替えます
+  const urlParams = new URLSearchParams(window.location.search);
+  const mode = urlParams.get('mode');
+  const baseUrl = window.location.origin + window.location.pathname;
 
   /**
-   * 渡されたURLから11桁の動画IDを抽出します。
-   * 通常URLに加え、短縮(youtu.be)、Shorts、Live形式にも対応しています。
+   * YouTubeの各種URL形式から11桁の動画IDを抽出します
    */
   function getVideoId(url) {
     const regex1 = /youtu\.be\/([a-zA-Z0-9_-]{11})/;
@@ -136,44 +117,62 @@
     const regex3 = /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/;
     const regex4 = /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/;
 
-    const match1 = url.match(regex1);
-    const match2 = url.match(regex2);
-    const match3 = url.match(regex3);
-    const match4 = url.match(regex4);
-
-    if (match1) return match1[1];
-    if (match2) return match2[1];
-    if (match3) return match3[1];
-    if (match4) return match4[1];
-
-    return null;
+    const match = url.match(regex1) || url.match(regex2) || url.match(regex3) || url.match(regex4);
+    return (match && match[1]) ? match[1] : null;
   }
 
   /**
-   * 動画IDを取得してiframeのURLを更新し、画面を切り替えます。
+   * プレイヤーを起動し、指定されたIDの動画を再生します
+   * パラメータ：自動再生オン、操作パネル有効、関連動画オフ、ミュート（自動再生回避用）
    */
-  function play() {
-    const url = input.value.trim();
-    const id = getVideoId(url);
-    error.textContent = '';
-
-    if (!id || id.length !== 11) {
-      error.textContent = '有効なYouTubeのURLではありません';
-      return;
-    }
-
-    // 元の指定通りのURL形式を使用（/embed/を含めています）
-    iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&controls=1&fs=0&iv_load_policy=3&rel=0`;
-    
-    // 画面の表示・非表示を切り替えます
+  function executePlay(id) {
+    const params = "autoplay=1&mute=1&controls=1&fs=0&iv_load_policy=3&rel=0&enablejsapi=1&playsinline=1";
+    iframe.src = `https://www.youtube.com/embed/${id}?${params}`;
     iframe.style.display = 'block';
-    form.classList.add('hidden');
-    setTimeout(() => { form.style.display = 'none'; }, 600);
+    document.body.style.background = '#000'; // 再生開始に合わせて背景を黒に
   }
 
-  // エンターキーでの操作と、起動時のフォーカス設定です
-  input.addEventListener('keypress', e => { if (e.key === 'Enter') play(); });
-  input.focus();
+  // --- 動作モード判定 ---
+
+  if (mode === 'dock') {
+    // 【ドックモード】URL入力画面を表示し、プレイヤーに情報を送信します
+    document.body.style.background = '#0a0a0a';
+    form.style.display = 'block';
+    
+    playBtn.onclick = () => {
+      const id = getVideoId(input.value.trim());
+      if (id) {
+        // 同一ブラウザ内（OBS内）の別画面に命令を飛ばします
+        localStorage.setItem('ps_yt_trigger', JSON.stringify({id: id, time: Date.now()}));
+        error.style.color = '#0f0';
+        error.textContent = 'SENT SUCCESSFULLY';
+        input.value = '';
+        setTimeout(() => { error.textContent = ''; error.style.color = '#ff5555'; }, 2000);
+      } else {
+        error.textContent = 'INVALID URL';
+      }
+    };
+  } 
+  else if (mode === 'player') {
+    // 【プレイヤーモード】ドックからの送信を待ち受けます（待機中は透明）
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'ps_yt_trigger' && event.newValue) {
+        const data = JSON.parse(event.newValue);
+        executePlay(data.id);
+      }
+    });
+  } 
+  else {
+    // 【セットアップモード】URLなしでアクセスした場合にガイドを表示
+    guide.style.display = 'block';
+    document.body.style.background = '#0a0a0a';
+    document.getElementById('url-dock').textContent = baseUrl + '?mode=dock';
+    document.getElementById('url-player').textContent = baseUrl + '?mode=player';
+  }
+
+  // Enterキーでの送信対応と初期フォーカス
+  input.addEventListener('keypress', e => { if (e.key === 'Enter') playBtn.onclick(); });
+  if(mode === 'dock') input.focus();
 </script>
 
 </body>
