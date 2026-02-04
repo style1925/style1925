@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube OBS Switcher</title>
+  <style>
+    /* OBSでのスクロールバー映り込みを完全に防止します */
+    ::-webkit-scrollbar { display: none; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* プレーヤーは再生開始まで非表示にし、画面いっぱいに表示します */
+    iframe {
+      border: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    /* 入力フォームのレイアウト。中央配置し、視認性を高めています */
+    #form {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.95);
+      padding: 5vh 5vw;
+      border-radius: 20px;
+      color: #fff;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      width: 80%;
+      max-width: 900px;
+      box-sizing: border-box;
+      transition: opacity 0.4s ease;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 5vw, 4rem);
+      margin: 0 0 4vh;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    /* 入力欄：フォーカス時に色が変わるようにし、操作場所を明確にしています */
+    input {
+      width: 100%;
+      padding: 2.5vh;
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      border: 2px solid #333;
+      border-radius: 12px;
+      margin-bottom: 2vh;
+      box-sizing: border-box;
+      outline: none;
+      background: #111;
+      color: #fff;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: #0b0;
+    }
+
+    /* ボタン：ホバー時やクリック時に動きを付け、クリック感を出しています */
+    button {
+      padding: 2vh 6vw;
+      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+      background: #0b0;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover {
+      background: #0d0;
+      transform: scale(1.05);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    /* エラーメッセージ用の領域。表示されてもレイアウトがガタつかないようにしています */
+    #error {
+      color: #ff5555;
+      margin-top: 3vh;
+      font-size: clamp(1.2rem, 3vw, 1.8rem);
+      min-height: 1.5em;
+      font-weight: 500;
+    }
+
+    /* 再生開始時にフォームを滑らかに消すためのクラスです */
+    .hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="form">
+  <h2>YouTube URL</h2>
+  <input type="text" id="url" placeholder="URLを貼り付けてください" spellcheck="false" />
+  <br>
+  <button onclick="play()">再生開始</button>
+  <div id="error"></div>
+</div>
+
+<iframe id="player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+
+<script>
+  const iframe = document.getElementById('player');
+  const form = document.getElementById('form');
+  const input = document.getElementById('url');
+  const error = document.getElementById('error');
+
+  /**
+   * 渡されたURLから11桁の動画IDを抽出します。
+   * 通常URLに加え、短縮(youtu.be)、Shorts、Live形式にも対応しています。
+   */
+  function getVideoId(url) {
+    const regex1 = /youtu\.be\/([a-zA-Z0-9_-]{11})/;
+    const regex2 = /youtube\.com\/(?:watch\?v=|embed\/)([a-zA-Z0-9_-]{11})/;
+    const regex3 = /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/;
+    const regex4 = /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/;
+
+    const match1 = url.match(regex1);
+    const match2 = url.match(regex2);
+    const match3 = url.match(regex3);
+    const match4 = url.match(regex4);
+
+    if (match1) return match1[1];
+    if (match2) return match2[1];
+    if (match3) return match3[1];
+    if (match4) return match4[1];
+
+    return null;
+  }
+
+  /**
+   * 動画IDを取得してiframeのURLを更新し、画面を切り替えます。
+   */
+  function play() {
+    const url = input.value.trim();
+    const id = getVideoId(url);
+    error.textContent = '';
+
+    if (!id || id.length !== 11) {
+      error.textContent = '有効なYouTubeのURLではありません';
+      return;
+    }
+
+    // 元の指定通りのURL形式を使用（/embed/を含めています）
+    iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&controls=1&fs=0&iv_load_policy=3&rel=0`;
+    
+    // 画面の表示・非表示を切り替えます
+    iframe.style.display = 'block';
+    form.classList.add('hidden');
+    setTimeout(() => { form.style.display = 'none'; }, 600);
+  }
+
+  // エンターキーでの操作と、起動時のフォーカス設定です
+  input.addEventListener('keypress', e => { if (e.key === 'Enter') play(); });
+  input.focus();
+</script>
+
+</body>
+</html>
